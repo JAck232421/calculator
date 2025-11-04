@@ -1,4 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import {
+  evaluateExpression as evaluateExpressionUtil,
+  evaluateExpressionSimple as evaluateExpressionSimpleUtil,
+  numericalDerivative as numericalDerivativeUtil
+} from './calculator_utils.js';
 
 export default function GraphingCalculator() {
   const [functions, setFunctions] = useState([
@@ -28,134 +33,28 @@ export default function GraphingCalculator() {
   // Available colors for functions
   const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6'];
   
-  // Safe math evaluation
-  const safeMath = {
-    sin: Math.sin,
-    cos: Math.cos,
-    tan: Math.tan,
-    sqrt: Math.sqrt,
-    abs: Math.abs,
-    exp: Math.exp,
-    ln: Math.log,
-    log: Math.log10,
-    PI: Math.PI,
-    E: Math.E,
-    pow: Math.pow,
-    asin: Math.asin,
-    acos: Math.acos,
-    atan: Math.atan,
-    sinh: Math.sinh,
-    cosh: Math.cosh,
-    tanh: Math.tanh,
-    floor: Math.floor,
-    ceil: Math.ceil,
-    round: Math.round,
-    min: Math.min,
-    max: Math.max
-  };
-  
-  // Build variable context
-  const getVariableContext = () => {
-    const context = {};
-    variables.forEach(v => {
-      context[v.name] = v.value;
+  const evaluateExpression = (expr, xValue, independentVar = 'x', currentFuncId = null) =>
+    evaluateExpressionUtil(expr, xValue, {
+      independentVar,
+      currentFuncId,
+      functions,
+      variables
     });
-    return context;
-  };
-  
-  // Evaluate expression safely with variables and function references
-  const evaluateExpression = (expr, xValue, independentVar = 'x', currentFuncId = null) => {
-    try {
-      // Replace function references like f(x), g(x), etc.
-      let processedExpr = expr;
-      
-      // Find and replace function calls
-      functions.forEach(func => {
-        if (func.id !== currentFuncId && func.visible) {
-          const funcName = func.dependentVar || 'f';
-          const funcIndepVar = func.independentVar || 'x';
-          
-          // Match patterns like f(x), f(2*x), f(x+1), etc.
-          const funcPattern = new RegExp(`${funcName}\\(([^)]+)\\)`, 'g');
-          processedExpr = processedExpr.replace(funcPattern, (match, innerExpr) => {
-            // Evaluate the inner expression
-            try {
-              const innerValue = evaluateExpression(innerExpr, xValue, independentVar, currentFuncId);
-              if (innerValue === null) return match;
-              // Evaluate the referenced function at that value
-              const funcValue = evaluateExpressionSimple(func.expr, innerValue, funcIndepVar);
-              return funcValue !== null ? funcValue : match;
-            } catch {
-              return match;
-            }
-          });
-        }
-      });
-      
-      // Replace common math notation
-      processedExpr = processedExpr
-        .replace(/\^/g, '**')
-        .replace(/(\d)([a-z])/gi, '$1*$2')
-        .replace(/\)(\d)/g, ')*$1')
-        .replace(/(\d)\(/g, '$1*(')
-        .replace(/\)\(/g, ')*(')
-        .replace(/pi/gi, 'PI')
-        .replace(/e(?![a-df-z])/gi, 'E');
-      
-      const varContext = getVariableContext();
-      const allContext = { ...safeMath, ...varContext };
-      
-      // Add the independent variable to context
-      allContext[independentVar] = xValue;
-      
-      // Create function with all context
-      const func = new Function(...Object.keys(allContext), `return ${processedExpr}`);
-      const result = func(...Object.values(allContext));
-      
-      if (isNaN(result) || !isFinite(result)) {
-        return null;
-      }
-      return result;
-    } catch (e) {
-      return null;
-    }
-  };
-  
-  // Simple evaluation without function references (to avoid circular dependencies)
-  const evaluateExpressionSimple = (expr, xValue, independentVar = 'x') => {
-    try {
-      let processedExpr = expr
-        .replace(/\^/g, '**')
-        .replace(/(\d)([a-z])/gi, '$1*$2')
-        .replace(/\)(\d)/g, ')*$1')
-        .replace(/(\d)\(/g, '$1*(')
-        .replace(/\)\(/g, ')*(')
-        .replace(/pi/gi, 'PI')
-        .replace(/e(?![a-df-z])/gi, 'E');
-      
-      const varContext = getVariableContext();
-      const allContext = { ...safeMath, ...varContext };
-      allContext[independentVar] = xValue;
-      
-      const func = new Function(...Object.keys(allContext), `return ${processedExpr}`);
-      const result = func(...Object.values(allContext));
-      
-      if (isNaN(result) || !isFinite(result)) {
-        return null;
-      }
-      return result;
-    } catch (e) {
-      return null;
-    }
-  };
-  
-  // Numerical derivative using central difference
-  const numericalDerivative = (expr, xValue, independentVar = 'x', currentFuncId = null, h = 0.0001) => {
-    const f1 = evaluateExpression(expr, xValue + h, independentVar, currentFuncId);
-    const f2 = evaluateExpression(expr, xValue - h, independentVar, currentFuncId);
-    if (f1 === null || f2 === null) return null;
-    return (f1 - f2) / (2 * h);
-  };
+
+  const evaluateExpressionSimple = (expr, xValue, independentVar = 'x') =>
+    evaluateExpressionSimpleUtil(expr, xValue, {
+      independentVar,
+      variables
+    });
+
+  const numericalDerivative = (expr, xValue, independentVar = 'x', currentFuncId = null, h = 0.0001) =>
+    numericalDerivativeUtil(expr, xValue, {
+      independentVar,
+      currentFuncId,
+      functions,
+      variables,
+      h
+    });
   
   // Scale factors
   const xScale = (width - 2 * padding) / (xMax - xMin);
